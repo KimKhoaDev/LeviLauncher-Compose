@@ -32,7 +32,7 @@
     <string name="about_title">☕ 关于</string>
     <string name="copyright">©2024–2026 LeviMC. 保留所有权利</string>
     <string name="font_license">本软件使用 Misans 字体</string>
-    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLaunchroid</string>
+    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLauncher-Android</string>
     <string name="quick_actions_title">快捷操作</string>
     <string name="content_mgmt_section_title">内容管理</string>
     <string name="misc_section_title">其他</string>
@@ -105,6 +105,12 @@
     <string name="settings_tab_personalize">个性化</string>
     <string name="settings_tab_updates">更新</string>
     <string name="settings_tab_about">关于</string>
+    <string name="settings_tab_components">包管理</string>
+    <string name="settings_tab_others">其他设置</string>
+    <string name="settings_tab_privacy">隐私</string>
+    <string name="settings_personalize_theme">主题与配色</string>
+    <string name="settings_personalize_wallpaper">壁纸</string>
+    <string name="settings_current_version">当前版本</string>
     <string name="settings_theme_desc">选择应用主题</string>
 
 
@@ -189,9 +195,12 @@
     <string name="toast_delete_failed">删除失败: %1$s</string>
     <string name="error_delete_builtin_version">不能删除内置版本</string>
     <string name="invalid_mod_file">失败</string>
-    <string name="invalid_mod_file_reason">仅允许导入 .so 文件、.zip 模组包或 .levipack 模组包。所选文件不是有效的原生模组导入包。</string>
+    <string name="invalid_mod_file_reason">仅允许导入 .so 文件、.zip 模组包或 .levipack/.mcmod 模组包。所选文件不是有效的原生模组导入包。</string>
     <string name="invalid_zip_mod_package_title">非法 ZIP 模组包</string>
     <string name="invalid_zip_mod_package_message">ZIP 模组包必须包含 manifest.json 与 .so 文件。</string>
+    <string name="invalid_mcmod_package_title">非法 .mcmod 模组包</string>
+    <string name="invalid_mcmod_package_message">.mcmod 的内容就是 mods/&lt;name&gt;/ 目录：根目录须有 manifest.json，其 \"name\" 即目录名，\"type\" 为 \"preload-native\"，\"entry\" 指向包内的 .so 文件。</string>
+    <string name="mod_import_refused_by_packages">无法导入到 mods/%1$s：%2$s。请改用包管理器更新或移除它。</string>
     <string name="error_versions">错误版本</string>
 
     <string name="dialog_title_delete_mod">删除 Mod</string>
@@ -202,9 +211,10 @@
     <string name="launch_vertically_desc">强制游戏以竖屏模式启动</string>
     <!-- Instance Management -->
     <string name="instance_settings_title">实例设置</string>
-    <string name="instance_tab_general">常规</string>
+    <string name="instance_tab_general">基础设置</string>
     <string name="instance_tab_launch_options">启动选项</string>
     <string name="instance_tab_management">管理</string>
+    <string name="instance_tab_loader">加载器</string>
     <string name="instance_new_name">新名称</string>
     <string name="instance_rename_hint">仅重命名文件夹。游戏版本和类型不受影响。</string>
     <string name="instance_custom_icon">自定义图标（需为正方形）</string>
@@ -594,6 +604,8 @@
     <!-- Crash & Diagnostics -->
     <string name="crash_title">应用发生崩溃</string>
     <string name="crash_upload">上传崩溃报告</string>
+    <string name="discord_rich_presence">Discord 游戏状态</string>
+    <string name="discord_rich_presence_desc">在 Discord 上显示启动器动态、Minecraft 版本和已游玩时长</string>
     <string name="crash_details_title">崩溃详情</string>
     <string name="crash_back_to_main">返回主页面</string>
     <string name="crash_share_log">分享日志</string>
@@ -647,6 +659,7 @@
     <string name="inbuilt_mod_camera_desc">切换相机视角</string>
     <string name="inbuilt_mod_hud">隐藏界面</string>
     <string name="inbuilt_mod_hud_desc">隐藏快捷栏和 UI</string>
+    <string name="mod_config_hide_launcher_hud">同时隐藏启动器 HUD 和悬浮按钮</string>
     <string name="inbuilt_mod_autosprint">自动疾跑</string>
     <string name="inbuilt_mod_autosprint_desc">切换疾跑开启/关闭</string>
     <string name="inbuilt_mod_chick_pet">小鸡宠物</string>
@@ -721,6 +734,10 @@
     <string name="mod_menu_appearance">外观</string>
     <string name="mod_menu_pause_menu_only">仅暂停菜单显示</string>
     <string name="mod_menu_pause_menu_only_desc">只在暂停界面显示模组菜单</string>
+    <string name="mod_menu_keybind">模组菜单快捷键</string>
+    <string name="mod_menu_keybind_desc">点击以更改键盘快捷键</string>
+    <string name="mod_menu_keybind_reset">重置为 M</string>
+    <string name="mod_menu_keybind_unbound">未绑定</string>
     <string name="mod_menu_default_percent" formatted="false">100%</string>
     <string name="mod_menu_percent_value">%1$d%%</string>
     <string name="mod_menu_settings_coming">设置即将推出</string>
@@ -848,8 +865,9 @@
 
     <!-- Navigation Bar -->
     <string name="nav_launch">启动</string>
+    <string name="nav_download">下载</string>
     <string name="nav_import">导入</string>
-    <string name="nav_instances">实例</string>
+    <string name="nav_instances">实例列表</string>
     <string name="nav_about">关于</string>
     <string name="nav_settings">设置</string>
 
@@ -1081,4 +1099,17 @@
     <string name="batch_transferring">正在传输 %1$d/%2$d…</string>
     <string name="batch_result">%1$d 个已完成，%2$d 个失败</string>
     <string name="choose_export_folder">选择导出文件夹</string>
+    <string name="mod_config_activation_keybind">激活快捷键</string>
+    <string name="mod_config_edit_controls">编辑控件</string>
+    <string name="mod_config_display_size_dp">显示大小 (dp)</string>
+    <string name="mod_config_clear_keybind">清除快捷键</string>
+    <string name="bg_media_title">背景</string>
+    <string name="bg_media_desc">选择一张图片或 GIF</string>
+    <string name="bg_media_select">选择背景</string>
+    <string name="bg_media_none">未选择背景</string>
+    <string name="bg_media_importing">正在导入背景…</string>
+    <string name="bg_media_import_failed">无法加载此背景，请选择受支持的图片或 GIF。</string>
+    <string name="bg_media_blur_unavailable">需要 Android 12+</string>
+    <string name="screenshot_saved">截图已保存</string>
+    <string name="backup_select_downloads">请选择“下载”文件夹，以便将备份保存到 Downloads/LeviLauncher/Backups。</string>
 </resources>

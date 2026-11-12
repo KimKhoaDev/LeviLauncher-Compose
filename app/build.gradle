@@ -26,6 +26,21 @@ discordApplicationId = new BigInteger(discordApplicationId).toString()
 def discordLargeImage = providers.gradleProperty('discord.large_image')
         .getOrElse(discordProperties.getProperty('large_image', '')).trim()
 
+def curseForgeApiKey = localProperties.getProperty('curseforge.api_key', '').trim()
+
+// Fallback for local debug builds only: the same obfuscated key LeviLauncher
+// for Windows embeds (base64, then XOR 0xAF). Release and beta builds, and
+// every CI build, keep using the key from local.properties (CI fills it from
+// a secret).
+def curseForgeDebugApiKey = curseForgeApiKey
+if (curseForgeDebugApiKey.isEmpty() && !System.getenv('CI')) {
+    def embeddedKeyFile = file('curseforge-debug-apikey.bin')
+    if (embeddedKeyFile.exists()) {
+        def deobfuscated = embeddedKeyFile.bytes.collect { (byte) (it ^ 0xAF) } as byte[]
+        curseForgeDebugApiKey = new String(Base64.decoder.decode(new String(deobfuscated, 'US-ASCII')), 'UTF-8').trim()
+    }
+}
+
 def getGitTag() {
     def tag = "unknown"
     try {
@@ -60,9 +75,10 @@ android {
         versionCode getVersionCodeByTimestamp()
         versionName "1.6.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField "String", "CURSEFORGE_API_KEY", "\"${localProperties.getProperty('curseforge.api_key', '')}\""
+        buildConfigField "String", "CURSEFORGE_API_KEY", groovy.json.JsonOutput.toJson(curseForgeApiKey)
         buildConfigField 'long', 'DISCORD_APPLICATION_ID', "${discordApplicationId}L"
         buildConfigField 'String', 'DISCORD_LARGE_IMAGE', groovy.json.JsonOutput.toJson(discordLargeImage)
+        buildConfigField 'boolean', 'SKIP_PLAY_STORE_CHECK', 'false'
         ndk {
             //noinspection ChromeOsAbiSupport
             abiFilters 'arm64-v8a'
@@ -115,6 +131,11 @@ android {
                 debugSymbolLevel 'FULL'
             }
             buildConfigField "boolean", "IS_BETA", "false"
+            buildConfigField "String", "CURSEFORGE_API_KEY", groovy.json.JsonOutput.toJson(curseForgeDebugApiKey)
+            // Local development only (e.g. emulators without Play): set dev.skip_play_store_check=true
+            // in local.properties. CI never sets it, so published debug APKs keep the check.
+            buildConfigField 'boolean', 'SKIP_PLAY_STORE_CHECK',
+                    localProperties.getProperty('dev.skip_play_store_check', 'false').trim() == 'true' ? 'true' : 'false'
         }
         beta {
             initWith release
@@ -171,6 +192,10 @@ dependencies {
     implementation files('libs/discord_partner_sdk.aar')
     implementation project(':minecraft')
     implementation project(':pojav_controls')
+    implementation libs.commonmark
+    implementation libs.commonmark.ext.gfm.tables
+    implementation libs.commonmark.ext.gfm.strikethrough
+    implementation libs.commonmark.ext.autolink
     implementation libs.minecraftauth
     implementation libs.commons.httpclient
     implementation libs.commons.gson

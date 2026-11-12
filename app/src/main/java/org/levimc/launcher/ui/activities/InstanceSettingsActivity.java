@@ -1,6 +1,8 @@
 package org.levimc.launcher.ui.activities;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -17,6 +19,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
 import org.levimc.launcher.R;
@@ -25,8 +28,16 @@ import org.levimc.launcher.core.versions.VersionManager;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
+import org.levimc.launcher.ui.packages.PackagesActivity;
+import org.levimc.launcher.ui.packages.LoaderCard;
+import org.levimc.launcher.ui.widget.SegmentedControl;
+import org.levimc.launcher.ui.widget.UiKit;
 import org.levimc.launcher.util.InstanceBackupManager;
 import org.levimc.launcher.util.InstanceShortcutManager;
+import org.levimc.launcher.util.InstanceIcons;
+
+import java.io.File;
+import java.io.FileOutputStream;
 
 public class InstanceSettingsActivity extends BaseActivity {
 
@@ -37,20 +48,30 @@ public class InstanceSettingsActivity extends BaseActivity {
     private InstallProgressDialog backupProgressDialog;
     private Button backupButton;
 
-    private TextView tabGeneral, tabLaunchOptions, tabManagement;
-    private View sectionGeneral, sectionLaunchOptions, sectionManagement;
+    private static final int TAB_GENERAL = 0;
+    private static final int TAB_LAUNCH_OPTIONS = 1;
+    private static final int TAB_LOADER = 2;
+    private static final int TAB_MANAGEMENT = 3;
+    private static final String ICON_DIR = "instance_icons";
+
+    private SegmentedControl tabs;
+    private View sectionGeneral, sectionLaunchOptions, sectionLoader, sectionManagement;
 
     private EditText editName;
     private SwitchMaterial switchIsolation;
     private SwitchMaterial switchLaunchVertically;
+    private SwitchMaterial switchModMenu;
     private EditText editShortcutName;
     private ImageView shortcutIconPreview;
+    private View shortcutIconPlaceholder;
     private String shortcutIconUri;
     private ActivityResultLauncher<String[]> shortcutIconPicker;
     private final Handler autoSaveHandler = new Handler(Looper.getMainLooper());
     private Runnable pendingNameSave;
     private boolean populatingData;
     private String lastSavedInstanceName = "";
+    private LoaderCard loaderSection;
+    private int currentTab = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,11 +80,12 @@ public class InstanceSettingsActivity extends BaseActivity {
 
         shortcutIconPicker = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri == null) return;
-            try {
-                getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception ignored) {
+            String stored = importIcon(uri);
+            if (stored == null) {
+                Toast.makeText(this, R.string.instances_ui_icon_import_failed, Toast.LENGTH_SHORT).show();
+                return;
             }
-            shortcutIconUri = uri.toString();
+            shortcutIconUri = stored;
             updateShortcutIconPreview();
             saveShortcutSettings();
         });
@@ -86,7 +108,6 @@ public class InstanceSettingsActivity extends BaseActivity {
                     }
                 });
 
-
         version = getIntent().getParcelableExtra("version");
         if (version == null) {
             finish();
@@ -95,27 +116,48 @@ public class InstanceSettingsActivity extends BaseActivity {
 
         initViews();
         populateData();
-        selectTab(tabGeneral);
+        loaderSection = new LoaderCard(this, version, findViewById(R.id.pkg_loader_card));
+        // The "Go to Loader" links open the Loader tab (PackagesActivity.Links.EXTRA_TAB).
+        String tab = getIntent().getStringExtra(PackagesActivity.Links.EXTRA_TAB);
+        int initialTab = PackagesActivity.Links.TAB_LOADER.equals(tab) ? TAB_LOADER
+                : PackagesActivity.Links.TAB_MANAGEMENT.equals(tab) ? TAB_MANAGEMENT : TAB_GENERAL;
+        if (savedInstanceState != null) {
+            initialTab = Math.max(TAB_GENERAL, Math.min(TAB_MANAGEMENT, savedInstanceState.getInt("instance_settings_tab", initialTab)));
+        }
+        tabs.setSelectedIndex(initialTab, false);
+        selectTab(initialTab);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (loaderSection != null) {
+            loaderSection.onResume();
+        }
     }
 
     private void initViews() {
-        tabGeneral = findViewById(R.id.tab_general);
-        tabLaunchOptions = findViewById(R.id.tab_launch_options);
-        tabManagement = findViewById(R.id.tab_management);
+        tabs = findViewById(R.id.instance_tabs);
+        tabs.setEqualWidth(false);
+        tabs.setItems(getString(R.string.instance_tab_general),
+                getString(R.string.instance_tab_launch_options),
+                getString(R.string.instance_tab_loader),
+                getString(R.string.instance_tab_management));
+        tabs.setOnSegmentSelectedListener(this::selectTab);
 
         sectionGeneral = findViewById(R.id.section_general);
         sectionLaunchOptions = findViewById(R.id.section_launch_options);
+        sectionLoader = findViewById(R.id.section_loader);
         sectionManagement = findViewById(R.id.section_management);
 
         editName = findViewById(R.id.edit_instance_name);
         switchIsolation = findViewById(R.id.switch_version_isolation);
         switchLaunchVertically = findViewById(R.id.switch_launch_vertically);
+        switchModMenu = findViewById(R.id.switch_instance_mod_menu);
         editShortcutName = findViewById(R.id.edit_shortcut_name);
         shortcutIconPreview = findViewById(R.id.shortcut_icon_preview);
-
-        tabGeneral.setOnClickListener(v -> selectTab(tabGeneral));
-        tabLaunchOptions.setOnClickListener(v -> selectTab(tabLaunchOptions));
-        tabManagement.setOnClickListener(v -> selectTab(tabManagement));
+        shortcutIconPlaceholder = findViewById(R.id.instance_icon_placeholder);
+        findViewById(R.id.btn_choose_shortcut_icon).setClipToOutline(true);
 
         switchIsolation.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (populatingData) return;
@@ -126,6 +168,18 @@ public class InstanceSettingsActivity extends BaseActivity {
             if (populatingData) return;
             versionManager.setInstanceLaunchVertically(version, isChecked);
             setResult(RESULT_OK);
+        });
+
+        switchModMenu.setOnCheckedChangeListener((button, checked) -> {
+            if (populatingData) return;
+            if (versionManager.setInstanceModMenuEnabled(version, checked)) {
+                setResult(RESULT_OK);
+            } else {
+                populatingData = true;
+                switchModMenu.setChecked(versionManager.isInstanceModMenuEnabled(version));
+                populatingData = false;
+                Toast.makeText(this, R.string.instance_settings_auto_save_failed, Toast.LENGTH_SHORT).show();
+            }
         });
 
         editName.addTextChangedListener(new TextWatcher() {
@@ -160,11 +214,14 @@ public class InstanceSettingsActivity extends BaseActivity {
         findViewById(R.id.btn_choose_shortcut_icon).setOnClickListener(v ->
                 shortcutIconPicker.launch(new String[]{"image/*"}));
         findViewById(R.id.btn_reset_shortcut_icon).setOnClickListener(v -> {
+            deleteStoredIcon();
             shortcutIconUri = null;
             updateShortcutIconPreview();
             saveShortcutSettings();
         });
-        findViewById(R.id.btn_add_instance_shortcut).setOnClickListener(v -> addInstanceShortcut());
+        MaterialButton addShortcut = findViewById(R.id.btn_add_instance_shortcut);
+        UiKit.applyPrimary(addShortcut);
+        addShortcut.setOnClickListener(v -> addInstanceShortcut());
 
         Button btnDelete = findViewById(R.id.btn_delete_instance);
         backupButton = findViewById(R.id.btn_backup_instance);
@@ -180,13 +237,8 @@ public class InstanceSettingsActivity extends BaseActivity {
     }
 
     private void populateData() {
-        TextView instanceInfo = findViewById(R.id.instance_info);
-        String type = version.isInstalled ? getString(R.string.tag_installed) : getString(R.string.tag_custom);
-        String info = "Game Version: " + (version.versionCode != null ? version.versionCode : "—")
-                + " · Name: " + (version.directoryName != null ? version.directoryName : "—")
-                + " · " + type;
-        instanceInfo.setText(info);
-
+        TextView versionTag = findViewById(R.id.instance_version_tag);
+        versionTag.setText(version.versionCode != null ? version.versionCode : "—");
         String currentName = version.versionCode != null ? version.versionCode : "";
         if (version.displayName != null && !version.displayName.isEmpty()) {
             String dn = version.displayName;
@@ -197,44 +249,25 @@ public class InstanceSettingsActivity extends BaseActivity {
                 currentName = dn;
             }
         }
+        updateInstanceInfo(currentName);
         populatingData = true;
         lastSavedInstanceName = currentName.trim();
         editName.setText(currentName);
         switchIsolation.setChecked(version.versionIsolation);
         switchLaunchVertically.setChecked(version.launchVertically);
+        switchModMenu.setChecked(versionManager.isInstanceModMenuEnabled(version));
         editShortcutName.setText(InstanceShortcutManager.getSavedName(this, version));
         shortcutIconUri = InstanceShortcutManager.getSavedIconUri(this, version);
         updateShortcutIconPreview();
         populatingData = false;
     }
 
-    private void selectTab(TextView selectedTab) {
-        TextView[] tabs = {tabGeneral, tabLaunchOptions, tabManagement};
-        View[] sections = {sectionGeneral, sectionLaunchOptions, sectionManagement};
-
-        org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(this);
-        int accent = pm.getAccentColor();
-
-        for (int i = 0; i < tabs.length; i++) {
-            boolean isSelected = tabs[i] == selectedTab;
-
-            if (isSelected) {
-                if (accent != 0) {
-                    android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-                    gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                    gd.setColor(accent);
-                    gd.setCornerRadius(16 * getResources().getDisplayMetrics().density);
-                    tabs[i].setBackground(gd);
-                } else {
-                    tabs[i].setBackgroundResource(R.drawable.bg_tab_selected);
-                }
-                tabs[i].setTextColor(android.graphics.Color.WHITE);
-            } else {
-                tabs[i].setBackgroundResource(R.drawable.bg_tab_unselected);
-                tabs[i].setTextColor(getColor(R.color.text_secondary));
-            }
-
-            if (isSelected) {
+    private void selectTab(int index) {
+        boolean changed = currentTab >= 0 && currentTab != index;
+        currentTab = index;
+        View[] sections = {sectionGeneral, sectionLaunchOptions, sectionLoader, sectionManagement};
+        for (int i = 0; i < sections.length; i++) {
+            if (i == index) {
                 sections[i].setVisibility(View.VISIBLE);
                 sections[i].setAlpha(0f);
                 sections[i].animate().alpha(1f).setDuration(200).start();
@@ -242,6 +275,24 @@ public class InstanceSettingsActivity extends BaseActivity {
                 sections[i].setVisibility(View.GONE);
             }
         }
+        if (loaderSection != null) {
+            loaderSection.setVisible(index == TAB_LOADER);
+        }
+        if (changed) findViewById(R.id.instance_settings_scroll).post(() ->
+                ((android.widget.ScrollView) findViewById(R.id.instance_settings_scroll)).scrollTo(0, 0));
+    }
+
+    private void updateInstanceInfo(String name) {
+        TextView info = findViewById(R.id.instance_info);
+        String type = getString(version.isInstalled ? R.string.tag_installed : R.string.tag_custom);
+        info.setText(name + " · " + type);
+        info.setContentDescription(info.getText());
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt("instance_settings_tab", currentTab);
     }
 
     private void scheduleInstanceNameSave() {
@@ -262,6 +313,7 @@ public class InstanceSettingsActivity extends BaseActivity {
         if (newName.isEmpty() || newName.equals(lastSavedInstanceName)) return;
         if (versionManager.setInstanceDisplayName(version, newName)) {
             lastSavedInstanceName = newName;
+            updateInstanceInfo(newName);
             setResult(RESULT_OK);
         } else {
             Toast.makeText(this, R.string.instance_settings_auto_save_failed, Toast.LENGTH_SHORT).show();
@@ -289,11 +341,49 @@ public class InstanceSettingsActivity extends BaseActivity {
 
     private void updateShortcutIconPreview() {
         if (shortcutIconPreview == null) return;
-        android.graphics.Bitmap bitmap = InstanceShortcutManager.loadIconBitmap(this, shortcutIconUri);
-        if (bitmap != null) {
-            shortcutIconPreview.setImageBitmap(bitmap);
-        } else {
-            shortcutIconPreview.setImageResource(R.mipmap.ic_launcher);
+        InstanceIcons.bindUri(shortcutIconPreview, shortcutIconUri);
+        shortcutIconPreview.setVisibility(View.VISIBLE);
+        if (shortcutIconPlaceholder != null) shortcutIconPlaceholder.setVisibility(View.GONE);
+    }
+
+    /**
+     * Copies the picked image (cropped to a square) into app-private storage, so the icon keeps working
+     * after the picker's URI permission is gone. Returns the stored file URI, or null on failure.
+     */
+    private String importIcon(Uri source) {
+        Bitmap bitmap = InstanceShortcutManager.loadIconBitmap(this, source.toString());
+        if (bitmap == null) return null;
+        File dir = new File(getFilesDir(), ICON_DIR);
+        if (!dir.isDirectory() && !dir.mkdirs()) return null;
+        // A new name per pick, so a cached bitmap of the previous icon is never reused.
+        File target = new File(dir, InstanceShortcutManager.getShortcutId(version)
+                + "_" + System.currentTimeMillis() + ".png");
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                target.delete();
+                return null;
+            }
+        } catch (Exception e) {
+            target.delete();
+            return null;
+        }
+        deleteStoredIcon();
+        return Uri.fromFile(target).toString();
+    }
+
+    /** Deletes the current icon file when it is one this screen stored in app-private storage. */
+    private void deleteStoredIcon() {
+        if (shortcutIconUri == null) return;
+        try {
+            Uri uri = Uri.parse(shortcutIconUri);
+            if (!"file".equals(uri.getScheme()) || uri.getPath() == null) return;
+            File file = new File(uri.getPath());
+            File parent = file.getParentFile();
+            File dir = new File(getFilesDir(), ICON_DIR);
+            if (parent != null && dir.getCanonicalPath().equals(parent.getCanonicalPath())) {
+                file.delete();
+            }
+        } catch (Exception ignored) {
         }
     }
 
@@ -411,6 +501,10 @@ public class InstanceSettingsActivity extends BaseActivity {
         if (pendingNameSave != null) {
             autoSaveHandler.removeCallbacks(pendingNameSave);
             pendingNameSave = null;
+        }
+        if (loaderSection != null) {
+            loaderSection.onDestroy();
+            loaderSection = null;
         }
         super.onDestroy();
     }

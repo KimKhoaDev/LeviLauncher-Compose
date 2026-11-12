@@ -5,8 +5,8 @@ import android.os.Bundle;
 import android.widget.Button;
 
 import androidx.annotation.Nullable;
-import androidx.core.view.ViewCompat;
-import android.widget.Switch;
+import android.widget.CompoundButton;
+import org.levimc.launcher.ui.widget.UiKit;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
@@ -20,13 +20,19 @@ import com.bumptech.glide.request.RequestOptions;
 
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.mods.Mod;
-import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
+import org.levimc.launcher.core.mods.ModManager;
+import org.levimc.launcher.core.versions.GameVersion;
+import org.levimc.launcher.core.packages.engine.Cancel;
+import org.levimc.launcher.ui.packages.InstalledFragment;
+import org.levimc.launcher.ui.packages.PackageActions;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
 import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.util.PersonalizationManager;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
+import java.util.List;
 
 public class ModDetailActivity extends BaseActivity {
 
@@ -36,7 +42,6 @@ public class ModDetailActivity extends BaseActivity {
     private String modFilenameArg;
     private TextView modNameText;
     private TextView modAuthorText;
-    private TextView modVersionText;
     private TextView modDescriptionText;
     private TextView modStatusText;
     private ImageView modIconView;
@@ -44,21 +49,26 @@ public class ModDetailActivity extends BaseActivity {
     private MetaRow versionRow;
     private MetaRow minecraftVersionsRow;
     private MetaRow configFilesRow;
-    private Switch modSwitch;
+    private CompoundButton modSwitch;
     private Button configureButton;
-    private View headerContainer;
     private View infoContainer;
     private View actionsContainer;
+    private TextView pkgChip;
+    private View packageActionsContainer;
+    private Button pkgUpdateButton;
+    private Button pkgPromoteButton;
+    private Button pkgOpenPackageButton;
+    /** The package owning this mod's folder, or null. */
+    private InstalledFragment.Model.Row pkgRow;
+    private final Cancel pkgCancel = new Cancel();
+    private int pkgRequest;
+    /** Set once a delete went through: the screen closes when the mod is gone. */
+    private boolean deleteRequested;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_mod_detail);
-
-        View root = findViewById(R.id.mod_detail_root);
-        if (root != null) {
-            DynamicAnim.applyPressScaleRecursively(root);
-        }
 
         if (getIntent().hasExtra("mod_filename") && getIntent().hasExtra("mod_position")) {
             modFilenameArg = getIntent().getStringExtra("mod_filename");
@@ -66,7 +76,6 @@ public class ModDetailActivity extends BaseActivity {
             
             setupViewModel();
             setupViews();
-            runEnterAnimations();
             
             loadModDetails(modFilenameArg);
         } else {
@@ -82,7 +91,6 @@ public class ModDetailActivity extends BaseActivity {
     private void setupViews() {
         modNameText = findViewById(R.id.mod_name_detail);
         modAuthorText = findViewById(R.id.mod_author_detail);
-        modVersionText = findViewById(R.id.mod_version_detail);
         modDescriptionText = findViewById(R.id.mod_description_detail);
         modStatusText = findViewById(R.id.mod_status_text);
         modIconView = findViewById(R.id.mod_icon_detail);
@@ -91,19 +99,45 @@ public class ModDetailActivity extends BaseActivity {
         minecraftVersionsRow = MetaRow.bind(findViewById(R.id.mod_minecraft_versions_row));
         configFilesRow = MetaRow.bind(findViewById(R.id.mod_config_files_row));
         modSwitch = findViewById(R.id.mod_switch_detail);
-        headerContainer = findViewById(R.id.mod_detail_title);
         View heroContainer = findViewById(R.id.mod_detail_header_container);
         infoContainer = findViewById(R.id.mod_detail_info_container);
         actionsContainer = findViewById(R.id.mod_detail_actions_container);
 
-
         applyPersonalization(heroContainer);
+
+        pkgChip = findViewById(R.id.mod_pkg_chip);
+        packageActionsContainer = findViewById(R.id.mod_pkg_actions);
+        pkgUpdateButton = findViewById(R.id.pkg_update_button);
+        pkgPromoteButton = findViewById(R.id.pkg_promote_button);
+        pkgOpenPackageButton = findViewById(R.id.pkg_open_package_button);
+        pkgUpdateButton.setOnClickListener(v -> {
+            GameVersion version = ModManager.getInstance().getCurrentVersion();
+            if (pkgRow != null && version != null) {
+                PackageActions.update(this, version, pkgRow, pkgDone(false));
+            }
+        });
+        pkgPromoteButton.setOnClickListener(v -> {
+            GameVersion version = ModManager.getInstance().getCurrentVersion();
+            if (pkgRow != null && version != null) {
+                PackageActions.promote(this, version, pkgRow, pkgDone(false));
+            }
+        });
+        pkgOpenPackageButton.setOnClickListener(v -> {
+            if (pkgRow != null) {
+                PackageActions.openPackage(this, ModManager.getInstance().getCurrentVersion(), pkgRow);
+            }
+        });
+        DynamicAnim.applyPressScale(pkgUpdateButton);
+        DynamicAnim.applyPressScale(pkgPromoteButton);
+        DynamicAnim.applyPressScale(pkgOpenPackageButton);
 
         Button deleteButton = findViewById(R.id.delete_mod_button);
         deleteButton.setOnClickListener(v -> confirmDeleteMod());
         DynamicAnim.applyPressScale(deleteButton);
 
         configureButton = findViewById(R.id.configure_mod_button);
+        UiKit.applyPrimary((com.google.android.material.button.MaterialButton) configureButton);
+        UiKit.applyPrimary((com.google.android.material.button.MaterialButton) pkgUpdateButton);
         configureButton.setOnClickListener(v -> openModConfig());
         DynamicAnim.applyPressScale(configureButton);
 
@@ -124,13 +158,20 @@ public class ModDetailActivity extends BaseActivity {
         if (viewModel != null) {
             viewModel.getModsLiveData().observe(this, mods -> {
                 if (mods != null) {
+                    boolean found = false;
                     for (Mod mod : mods) {
                         if (mod.getId().equals(modFilename)) {
                             currentMod = mod;
                             updateModUI(mod);
+                            found = true;
                             break;
                         }
                     }
+                    if (!found && deleteRequested) {
+                        finish();
+                        return;
+                    }
+                    loadPkgState(mods);
                 }
             });
             
@@ -145,11 +186,12 @@ public class ModDetailActivity extends BaseActivity {
 
             modNameText.setText(mod.getDisplayName());
             modAuthorText.setText(getString(R.string.mod_author_byline, author));
-            modVersionText.setText(getString(R.string.mod_version_chip, version));
             modStatusText.setText(mod.isEnabled() ? R.string.mod_status_enabled : R.string.mod_status_disabled);
             modSwitch.setChecked(mod.isEnabled());
+            modSwitch.setContentDescription(getString(R.string.mods_enable_mod, mod.getDisplayName()));
 
             String description = trimToNull(mod.getDescription());
+            findViewById(R.id.mod_description_heading).setVisibility(description == null ? View.GONE : View.VISIBLE);
             if (description == null) {
                 modDescriptionText.setVisibility(View.GONE);
             } else {
@@ -183,28 +225,22 @@ public class ModDetailActivity extends BaseActivity {
     }
 
     private void loadModIcon(Mod mod) {
-        if (modIconView == null) {
-            return;
-        }
-
+        if (modIconView == null) return;
+        Glide.with(this).clear(modIconView);
         String iconPath = trimToNull(mod.getIconPath());
-        if (iconPath == null) {
-            modIconView.setImageResource(R.drawable.ic_plugin);
+        File iconFile = iconPath == null ? null : new File(iconPath);
+        if (iconFile == null || !iconFile.isFile()) {
+            iconContainer.setVisibility(View.GONE);
+            modIconView.setImageDrawable(null);
             return;
         }
-
-        File iconFile = new File(iconPath);
-        if (!iconFile.isFile()) {
-            modIconView.setImageResource(R.drawable.ic_plugin);
-            return;
-        }
-
-        int radiusPx = Math.round(12f * getResources().getDisplayMetrics().density);
+        iconContainer.setVisibility(View.VISIBLE);
+        int radiusPx = Math.round(8f * getResources().getDisplayMetrics().density);
         Glide.with(this)
                 .load(iconFile)
                 .apply(RequestOptions.bitmapTransform(new RoundedCorners(radiusPx)))
-                .placeholder(R.drawable.ic_plugin)
-                .error(R.drawable.ic_plugin)
+                .placeholder(R.drawable.ic_ui_code)
+                .error(R.drawable.ic_ui_code)
                 .into(modIconView);
     }
 
@@ -249,41 +285,79 @@ public class ModDetailActivity extends BaseActivity {
         startActivity(intent);
     }
 
-    private void runEnterAnimations() {
-        float density = getResources().getDisplayMetrics().density;
-        float dy = 16f * density;
-        android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
-
-        View heroContainer = findViewById(R.id.mod_detail_header_container);
-        View[] cards = new View[]{headerContainer, heroContainer, infoContainer, actionsContainer};
-        for (int i = 0; i < cards.length; i++) {
-            View card = cards[i];
-            if (card == null) continue;
-            card.setAlpha(0f);
-            card.setTranslationY(dy);
-            final int delay = 100 + i * 80;
-            handler.postDelayed(() -> {
-                DynamicAnim.springAlphaTo(card, 1f).start();
-                DynamicAnim.springTranslationYTo(card, 0f).start();
-            }, delay);
+    /**
+     * Deletes the mod: a folder a package owns is removed by
+     * uninstalling the package (or refused when the package is only a
+     * dependency); PackageActions asks first. The screen closes once the
+     * mod is gone from the list.
+     */
+    private void confirmDeleteMod() {
+        GameVersion version = ModManager.getInstance().getCurrentVersion();
+        if (currentMod == null || version == null) {
+            return;
         }
-
-        // 不对 mod 名称做入场动画，保持静态
+        PackageActions.deleteModFolder(this, version, currentMod, pkgDone(true));
     }
 
-    private void confirmDeleteMod() {
-        if (currentMod != null) {
-            new CustomAlertDialog(this)
-                    .setTitleText(getString(R.string.dialog_title_delete_mod))
-                    .setMessage(getString(R.string.dialog_message_delete_mod))
-                    .setPositiveButton(getString(R.string.dialog_positive_delete), v -> {
-                        viewModel.removeMod(currentMod);
-                        Toast.makeText(this, R.string.delete_mod, Toast.LENGTH_SHORT).show();
-                        finish();
-                    })
-                    .setNegativeButton(getString(R.string.dialog_negative_cancel), null)
-                    .show();
+    /**
+     * After a package action: reloads the mods (after a delete the screen closes
+     * once the mod is gone). Holds the activity weakly, since the action's
+     * task may outlive it.
+     */
+    private PackageActions.Done pkgDone(boolean delete) {
+        WeakReference<ModDetailActivity> self = new WeakReference<>(this);
+        return changed -> {
+            ModDetailActivity a = self.get();
+            if (a == null || !changed || a.isFinishing() || a.isDestroyed()) {
+                return;
+            }
+            if (delete) {
+                a.deleteRequested = true;
+            }
+            a.viewModel.reloadMods();
+        };
+    }
+
+    /** Reads which package owns this mod's folder, then shows the chip and the package actions. */
+    private void loadPkgState(List<Mod> mods) {
+        int request = ++pkgRequest;
+        InstalledFragment.Loader.loadForMods(pkgCancel, ModManager.getInstance().getCurrentVersion(), mods, rows -> {
+            if (request != pkgRequest || isFinishing() || isDestroyed()) {
+                return;
+            }
+            pkgRow = modFilenameArg == null ? null : InstalledFragment.Model.ownerOf(rows, modFilenameArg);
+            renderPackage();
+        });
+    }
+
+    private void renderPackage() {
+        InstalledFragment.Model.Row row = pkgRow;
+        if (row == null) {
+            packageActionsContainer.setVisibility(View.GONE);
+            pkgChip.setVisibility(View.GONE);
+            pkgUpdateButton.setVisibility(View.GONE);
+            pkgPromoteButton.setVisibility(View.GONE);
+            pkgOpenPackageButton.setVisibility(View.GONE);
+            return;
         }
+        String text = getString(R.string.pkg_mod_managed, row.pkg.identity, row.pkg.version);
+        if (!row.explicit()) {
+            text += " · " + getString(R.string.pkg_installed_dependency);
+        }
+        pkgChip.setText(text);
+        pkgChip.setVisibility(View.VISIBLE);
+        pkgUpdateButton.setVisibility(row.canUpdate() ? View.VISIBLE : View.GONE);
+        pkgUpdateButton.setText(getString(R.string.pkg_installed_update_available, row.targetVersion));
+        pkgPromoteButton.setVisibility(!row.explicit() && !row.leviLamina ? View.VISIBLE : View.GONE);
+        pkgOpenPackageButton.setVisibility(row.hasPackagePage() ? View.VISIBLE : View.GONE);
+        packageActionsContainer.setVisibility(row.canUpdate() || (!row.explicit() && !row.leviLamina)
+                || row.hasPackagePage() ? View.VISIBLE : View.GONE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        pkgCancel.cancel();
+        super.onDestroy();
     }
 
     // Exit animation is now handled uniformly in BaseActivity.finish()

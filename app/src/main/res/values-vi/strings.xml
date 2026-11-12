@@ -32,7 +32,7 @@
     <string name="about_title">☕ Về</string>
     <string name="copyright">©2024–2026 LeviMC. Mọi quyền được bảo lưu.</string>
     <string name="font_license">Ứng dụng đang sử dụng phông chữ Misans.</string>
-    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLaunchroid</string>
+    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLauncher-Android</string>
     <string name="quick_actions_title">Thao tác nhanh</string>
     <string name="content_mgmt_section_title">Quản lý nội dung</string>
     <string name="misc_section_title">Khác</string>
@@ -105,6 +105,12 @@
     <string name="settings_tab_personalize">Cá nhân hóa</string>
     <string name="settings_tab_updates">Cập nhật</string>
     <string name="settings_tab_about">Về</string>
+    <string name="settings_tab_components">Quản lý gói</string>
+    <string name="settings_tab_others">Khác</string>
+    <string name="settings_tab_privacy">Quyền riêng tư</string>
+    <string name="settings_personalize_theme">Chủ đề và màu sắc</string>
+    <string name="settings_personalize_wallpaper">Hình nền</string>
+    <string name="settings_current_version">Phiên bản hiện tại</string>
     <string name="settings_theme_desc">Chọn chủ đề cho ứng dụng</string>
 
 
@@ -189,9 +195,12 @@
     <string name="toast_delete_failed">Xóa không thành công: %1$s</string>
     <string name="error_delete_builtin_version">Không thể xóa phiên bản tích hợp sẵn</string>
     <string name="invalid_mod_file">Không thành công</string>
-    <string name="invalid_mod_file_reason">Chỉ cho phép tệp .so, gói mod .zip hoặc gói mod .levipack | Tệp đã chọn không phải là gói nhập mod hợp lệ.</string>
+    <string name="invalid_mod_file_reason">Chỉ cho phép tệp .so, gói mod .zip hoặc gói mod .levipack/.mcmod | Tệp đã chọn không phải là gói nhập mod hợp lệ.</string>
     <string name="invalid_zip_mod_package_title">Gói mod ZIP không hợp lệ</string>
     <string name="invalid_zip_mod_package_message">Gói mod ZIP phải chứa file manifest.json và file .so.</string>
+    <string name="invalid_mcmod_package_title">Gói .mcmod không hợp lệ</string>
+    <string name="invalid_mcmod_package_message">Một tệp .mcmod chứa đúng nội dung của mods/&lt;name&gt;/: manifest.json ở thư mục gốc, với \"name\" là tên thư mục, \"type\": \"preload-native\" và một tệp .so cho \"entry\".</string>
+    <string name="mod_import_refused_by_packages">Không thể nhập vào mods/%1$s: %2$s. Hãy cập nhật hoặc gỡ bỏ nó bằng trình quản lý gói.</string>
     <string name="error_versions">Phiên bản lỗi</string>
 
     <string name="dialog_title_delete_mod">Xóa Mod</string>
@@ -205,6 +214,7 @@
     <string name="instance_tab_general">Chung</string>
     <string name="instance_tab_launch_options">Tùy chọn khởi chạy</string>
     <string name="instance_tab_management">Quản lý</string>
+    <string name="instance_tab_loader">Trình tải</string>
     <string name="instance_new_name">Tên mới</string>
     <string name="instance_rename_hint">Chỉ đổi tên thư mục. Phiên bản và loại trò chơi không bị ảnh hưởng.</string>
     <string name="instance_custom_icon">Icon tùy chỉnh (khuyến khích hình vuông)</string>
@@ -594,6 +604,8 @@
     <!-- Crash & Diagnostics -->
     <string name="crash_title">Ứng dụng bị lỗi</string>
     <string name="crash_upload">Tải lên báo cáo sự cố</string>
+    <string name="discord_rich_presence">Discord Rich Presence</string>
+    <string name="discord_rich_presence_desc">Hiển thị hoạt động của launcher, phiên bản Minecraft và thời gian đã chơi trên Discord</string>
     <string name="crash_details_title">Chi tiết lỗi</string>
     <string name="crash_back_to_main">Trở về Trang chủ</string>
     <string name="crash_share_log">Chia sẻ nhật ký</string>
@@ -647,6 +659,7 @@
     <string name="inbuilt_mod_camera_desc">Chuyển đổi chế độ xem camera</string>
     <string name="inbuilt_mod_hud">Ẩn HUD</string>
     <string name="inbuilt_mod_hud_desc">Ẩn hotbar và UI</string>
+    <string name="mod_config_hide_launcher_hud">Ẩn cả HUD và các nút lớp phủ của launcher</string>
     <string name="inbuilt_mod_autosprint">Tự động chạy nhanh</string>
     <string name="inbuilt_mod_autosprint_desc">Bật/tắt chế độ chạy nhanh</string>
     <string name="inbuilt_mod_chick_pet">Gà Con</string>
@@ -721,6 +734,10 @@
     <string name="mod_menu_appearance">Giao diện</string>
     <string name="mod_menu_pause_menu_only">Chỉ trong menu tạm dừng</string>
     <string name="mod_menu_pause_menu_only_desc">Chỉ hiển thị menu mod ở màn hình tạm dừng</string>
+    <string name="mod_menu_keybind">Phím tắt menu Mod</string>
+    <string name="mod_menu_keybind_desc">Nhấn để thay đổi phím tắt bàn phím</string>
+    <string name="mod_menu_keybind_reset">Đặt lại thành M</string>
+    <string name="mod_menu_keybind_unbound">Chưa gán</string>
     <string name="mod_menu_default_percent" formatted="false">100%</string>
     <string name="mod_menu_percent_value">%1$d%%</string>
     <string name="mod_menu_settings_coming">Các cài đặt sẽ sớm được cập nhật.</string>
@@ -848,6 +865,7 @@
 
     <!-- Navigation Bar -->
     <string name="nav_launch">Khởi chạy</string>
+    <string name="nav_download">Tải xuống</string>
     <string name="nav_import">Nhập</string>
     <string name="nav_instances">Các phiên bản</string>
     <string name="nav_about">Về</string>
@@ -1081,4 +1099,17 @@
     <string name="batch_transferring">Đang chuyển %1$d trên %2$d…</string>
     <string name="batch_result">%1$d hoàn tất, %2$d thất bại</string>
     <string name="choose_export_folder">Chọn thư mục xuất</string>
+    <string name="mod_config_activation_keybind">Phím tắt kích hoạt</string>
+    <string name="mod_config_edit_controls">Chỉnh sửa điều khiển</string>
+    <string name="mod_config_display_size_dp">Kích thước hiển thị (dp)</string>
+    <string name="mod_config_clear_keybind">Xóa phím tắt</string>
+    <string name="bg_media_title">Hình nền</string>
+    <string name="bg_media_desc">Chọn ảnh hoặc GIF</string>
+    <string name="bg_media_select">Chọn hình nền</string>
+    <string name="bg_media_none">Chưa chọn hình nền</string>
+    <string name="bg_media_importing">Đang nhập hình nền…</string>
+    <string name="bg_media_import_failed">Không thể tải hình nền này. Hãy chọn ảnh hoặc GIF được hỗ trợ.</string>
+    <string name="bg_media_blur_unavailable">Android 12+</string>
+    <string name="screenshot_saved">Đã lưu ảnh chụp màn hình</string>
+    <string name="backup_select_downloads">Chọn thư mục Download để lưu bản sao lưu vào Download/LeviLauncher/Backups.</string>
 </resources>

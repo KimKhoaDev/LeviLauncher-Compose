@@ -23,6 +23,7 @@ import android.util.Log;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import org.levimc.launcher.core.packages.PackageService;
 import org.levimc.launcher.core.minecraft.MinecraftLauncher;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.core.versions.VersionManager;
@@ -98,6 +99,7 @@ public class InstanceBackupManager {
         public String packageName;
         public boolean versionIsolation;
         public boolean launchVertically;
+        public boolean modMenuEnabled = true;
         public long createdAt;
     }
 
@@ -188,6 +190,7 @@ public class InstanceBackupManager {
         executor.execute(() -> {
             postStarted(callback);
             OutputTarget target = null;
+            PackageService.Held pkgLock = null;
             try {
                 if (version == null) {
                     throw new IOException("No instance selected");
@@ -195,6 +198,9 @@ public class InstanceBackupManager {
 
                 BackupManifest manifest = createManifest(version);
                 String fileName = buildBackupFileName(manifest);
+                // The package state (.lip and the packages' files) is archived
+                // as it is; no package operation may change it meanwhile.
+                pkgLock = lockPackages(getProfileRoot(version));
                 target = createOutputTarget(fileName);
 
                 List<NamedSource> packageSources = collectInstalledPackageSources(version);
@@ -235,6 +241,10 @@ public class InstanceBackupManager {
                     finishOutputTarget(target, false);
                 }
                 postBackupError(callback, e.getMessage());
+            } finally {
+                if (pkgLock != null) {
+                    pkgLock.close();
+                }
             }
         });
     }
@@ -367,6 +377,7 @@ public class InstanceBackupManager {
         manifest.packageName = version.packageName;
         manifest.versionIsolation = version.versionIsolation;
         manifest.launchVertically = version.launchVertically;
+        manifest.modMenuEnabled = VersionManager.get(context).isInstanceModMenuEnabled(version);
         manifest.createdAt = System.currentTimeMillis();
         return manifest;
     }
@@ -732,18 +743,21 @@ public class InstanceBackupManager {
             if (!targetProfileRoot.exists() && !targetProfileRoot.mkdirs()) {
                 throw new IOException("Failed to create instance directory");
             }
-            extractBackupEntries(zipFile, callback, (entryName, relativePath) -> {
-                if (entryName.startsWith(PROFILE_PREFIX)) {
-                    return new RestoreTarget(targetProfileRoot, relativePath);
-                }
-                if (entryName.startsWith(SHARED_PREFIX)) {
-                    return new RestoreTarget(targetProfileRoot, relativePath);
-                }
-                if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
-                    return new RestoreTarget(targetRuntimeRoot, relativePath);
-                }
-                return null;
-            });
+            try (PackageService.Held ignored = lockPackages(targetProfileRoot)) {
+                extractBackupEntries(zipFile, callback, (entryName, relativePath) -> {
+                    if (entryName.startsWith(PROFILE_PREFIX)) {
+                        return new RestoreTarget(targetProfileRoot, relativePath);
+                    }
+                    if (entryName.startsWith(SHARED_PREFIX)) {
+                        return new RestoreTarget(targetProfileRoot, relativePath);
+                    }
+                    if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
+                        return new RestoreTarget(targetRuntimeRoot, relativePath);
+                    }
+                    return null;
+                });
+            }
+            recoverRestoredPackages(targetProfileRoot);
             updateCustomMetadata(targetName, manifest, sharedRestoredIntoProfile);
             selectRestoredCustomVersion(targetName);
             success = true;
@@ -768,22 +782,39 @@ public class InstanceBackupManager {
         File sharedRoot = LauncherStorage.getSharedRoot(context);
         File runtimeRoot = MinecraftLauncher.getRuntimeLibDir(context, LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID);
 
-        extractBackupEntries(zipFile, callback, (entryName, relativePath) -> {
-            if (entryName.startsWith(PROFILE_PREFIX)) {
-                if (shouldSkipInstalledProfileEntry(relativePath)) {
-                    return null;
+        try (PackageService.Held ignored = lockPackages(profileRoot)) {
+            extractBackupEntries(zipFile, callback, (entryName, relativePath) -> {
+                if (entryName.startsWith(PROFILE_PREFIX)) {
+                    if (shouldSkipInstalledProfileEntry(relativePath)) {
+                        return null;
+                    }
+                    return new RestoreTarget(profileRoot, relativePath);
                 }
-                return new RestoreTarget(profileRoot, relativePath);
-            }
-            if (entryName.startsWith(SHARED_PREFIX)) {
-                return new RestoreTarget(sharedRoot, relativePath);
-            }
-            if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
-                return new RestoreTarget(runtimeRoot, relativePath);
-            }
-            return null;
-        });
+                if (entryName.startsWith(SHARED_PREFIX)) {
+                    return new RestoreTarget(sharedRoot, relativePath);
+                }
+                if (entryName.startsWith(RUNTIME_LIBS_PREFIX)) {
+                    return new RestoreTarget(runtimeRoot, relativePath);
+                }
+                return null;
+            });
+        }
+        recoverRestoredPackages(profileRoot);
         return firstNonEmpty(manifest.instanceName, LauncherStorage.INSTALLED_MINECRAFT_PROFILE_ID);
+    }
+
+    /** Recovers an interrupted package operation of root, then holds it so no operation changes it. */
+    private PackageService.Held lockPackages(File root) throws IOException {
+        return PackageService.get().lockWorkspace(root);
+    }
+
+    /** A restored instance may hold the journal of an operation interrupted before the backup. */
+    private void recoverRestoredPackages(File root) {
+        try {
+            PackageService.get().lockWorkspace(root).close();
+        } catch (IOException e) {
+            Log.w(TAG, "Recovering the restored packages failed: " + e.getMessage(), e);
+        }
     }
 
     private boolean shouldSkipInstalledProfileEntry(String relativePath) {
@@ -903,6 +934,7 @@ public class InstanceBackupManager {
                     metadata.displayName = firstNonEmpty(manifest.instanceName, null);
                     metadata.versionIsolation = sharedRestoredIntoProfile || manifest.versionIsolation;
                     metadata.launchVertically = manifest.launchVertically;
+                    metadata.modMenuEnabled = manifest.modMenuEnabled;
                     metadata.installed = false;
                     metadata.packageName = null;
                 });

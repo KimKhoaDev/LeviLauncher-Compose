@@ -7,6 +7,7 @@ import android.content.pm.ApplicationInfo;
 import android.os.Build;
 import android.widget.Toast;
 
+import org.levimc.launcher.BuildConfig;
 import org.levimc.launcher.R;
 import org.levimc.launcher.core.versions.GameVersion;
 import org.levimc.launcher.util.LauncherStorage;
@@ -22,6 +23,7 @@ public class MinecraftLauncher {
     private static final String TAG = "MinecraftLauncher";
     private final Context context;
     public static final String MC_PACKAGE_NAME = "com.mojang.minecraftpe";
+    public static final String EXTRA_MOD_MENU_ENABLED = "org.levimc.launcher.extra.MOD_MENU_ENABLED";
     public static final String EXTRA_GAME_VERSION = "org.levimc.launcher.extra.GAME_VERSION";
     public static final String EXTRA_STORAGE_PROFILE_ID = "org.levimc.launcher.extra.STORAGE_PROFILE_ID";
     public static final String EXTRA_STORAGE_FILES_DIR = "org.levimc.launcher.extra.STORAGE_FILES_DIR";
@@ -146,7 +148,7 @@ public class MinecraftLauncher {
 
             activity.runOnUiThread(() -> {
                 try {
-                    if (!PlayStoreValidator.isMinecraftFromPlayStore(activity)) {
+                    if (!BuildConfig.SKIP_PLAY_STORE_CHECK && !PlayStoreValidator.isMinecraftFromPlayStore(activity)) {
                         Log.w(TAG, "Launch denied: Minecraft is not verified as Play Store install");
                         PlayStoreValidationDialog.showNotFromPlayStoreDialog(activity);
                         notifyLaunchFailed(callback, new SecurityException("Minecraft is not verified as Play Store install"));
@@ -209,6 +211,8 @@ public class MinecraftLauncher {
         launchIntent.putExtra("MINECRAFT_VERSION", version.versionCode);
         launchIntent.putExtra("MINECRAFT_VERSION_DIR", version.directoryName);
         launchIntent.putExtra("LAUNCH_VERTICALLY", version.launchVertically);
+        launchIntent.putExtra(EXTRA_MOD_MENU_ENABLED,
+                org.levimc.launcher.core.versions.VersionManager.get(context).isInstanceModMenuEnabled(version));
         launchIntent.putExtra("VERSION_ISOLATION", version.versionIsolation);
         launchIntent.removeExtra("LAUNCH_WITH_URI");
 

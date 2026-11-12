@@ -32,7 +32,7 @@
     <string name="about_title">☕ About</string>
     <string name="copyright">©2024–2026 LeviMC. All rights reserved.</string>
     <string name="font_license">This app uses the Misans font.</string>
-    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLaunchroid</string>
+    <string name="about_footer_github">GitHub: https://github.com/LiteLDev/LeviLauncher-Android</string>
     <string name="quick_actions_title">Quick Actions</string>
     <string name="content_mgmt_section_title">Content Management</string>
     <string name="misc_section_title">Miscellaneous</string>
@@ -105,6 +105,12 @@
     <string name="settings_tab_personalize">Personalization</string>
     <string name="settings_tab_updates">Updates</string>
     <string name="settings_tab_about">About</string>
+    <string name="settings_tab_components">Package Management</string>
+    <string name="settings_tab_others">Others</string>
+    <string name="settings_tab_privacy">Privacy</string>
+    <string name="settings_personalize_theme">Theme and colors</string>
+    <string name="settings_personalize_wallpaper">Wallpaper</string>
+    <string name="settings_current_version">Current version</string>
     <string name="settings_theme_desc">Choose the application theme</string>
 
 
@@ -189,9 +195,12 @@
     <string name="toast_delete_failed">Delete failed: %1$s</string>
     <string name="error_delete_builtin_version">Cannot delete built-in version</string>
     <string name="invalid_mod_file">Failed</string>
-    <string name="invalid_mod_file_reason">Only .so files, .zip mod packages, or .levipack mod packages are allowed. The selected file is not a valid native mod import package.</string>
+    <string name="invalid_mod_file_reason">Only .so files, .zip mod packages, or .levipack/.mcmod mod packages are allowed. The selected file is not a valid native mod import package.</string>
     <string name="invalid_zip_mod_package_title">Invalid ZIP Mod Package</string>
     <string name="invalid_zip_mod_package_message">The ZIP mod package must contain manifest.json and a .so file.</string>
+    <string name="invalid_mcmod_package_title">Invalid .mcmod Package</string>
+    <string name="invalid_mcmod_package_message">A .mcmod holds exactly the contents of mods/&lt;name&gt;/: manifest.json at its root, with \"name\" as the folder name, \"type\": \"preload-native\" and an \"entry\" .so file.</string>
+    <string name="mod_import_refused_by_packages">Cannot import into mods/%1$s: %2$s. Update or remove it with the package manager instead.</string>
     <string name="error_versions">Error Versions</string>
 
     <string name="dialog_title_delete_mod">Delete Mod</string>
@@ -205,6 +214,7 @@
     <string name="instance_tab_general">General</string>
     <string name="instance_tab_launch_options">Launch Options</string>
     <string name="instance_tab_management">Management</string>
+    <string name="instance_tab_loader">Loader</string>
     <string name="instance_new_name">New Name</string>
     <string name="instance_rename_hint">Only rename the folder. Game version and type are unaffected.</string>
     <string name="instance_custom_icon">Custom Icon (square required)</string>
@@ -855,6 +865,7 @@
 
     <!-- Navigation Bar -->
     <string name="nav_launch">Launch</string>
+    <string name="nav_download">Download</string>
     <string name="nav_import">Import</string>
     <string name="nav_instances">Instances</string>
     <string name="nav_about">About</string>

@@ -42,11 +42,15 @@ import org.levimc.launcher.ui.animation.DynamicAnim;
 import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 
 import org.levimc.launcher.ui.views.MainViewModel;
+import org.levimc.launcher.ui.widget.UiKit;
+import org.levimc.launcher.ui.widget.LauncherPopup;
+import org.levimc.launcher.util.ThemePalette;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
 import org.levimc.launcher.util.ApkImportManager;
 import org.levimc.launcher.util.GithubReleaseUpdater;
 import org.levimc.launcher.util.LanguageManager;
 import org.levimc.launcher.util.InstanceShortcutManager;
+import org.levimc.launcher.util.InstanceIcons;
 import org.levimc.launcher.util.LauncherStorage;
 import org.levimc.launcher.util.StorageAccess;
 import org.levimc.launcher.util.PermissionsHandler;
@@ -107,7 +111,7 @@ import okhttp3.OkHttpClient;
     private com.microsoft.xbox.idp.toolkit.CircleImageView accountAvatar;
     private View accountAvatarContainer;
     private ProgressBar avatarProgress;
-    private Button signInButton;
+    private View signInButton;
     private String lastAvatarXuid;
     private final OkHttpClient avatarClient = new OkHttpClient();
     private ExecutorService accountExecutor = Executors.newSingleThreadExecutor();
@@ -126,7 +130,7 @@ import okhttp3.OkHttpClient;
         setupNavBar();
         setupManagersAndHandlers();
         if (!isInstanceShortcutIntent()) {
-            new GithubReleaseUpdater(this, "LiteLDev", "LeviLaunchroid", permissionResultLauncher).checkUpdateOnLaunch();
+            new GithubReleaseUpdater(this, "LiteLDev", "LeviLauncher-Android", permissionResultLauncher).checkUpdateOnLaunch();
         }
         showEulaIfNeeded();
         setupOnBackPressedCallback();
@@ -499,7 +503,7 @@ import okhttp3.OkHttpClient;
     }
 
     private void initializeVersionManager() {
-        binding.launchButton.setEnabled(false);
+        setLaunchEnabled(false);
         versionManager = VersionManager.getIfInitialized();
         if (versionManager != null) {
             onVersionManagerReady();
@@ -515,7 +519,7 @@ import okhttp3.OkHttpClient;
     private void onVersionManagerReady() {
         if (versionManager == null || binding == null) return;
         fileHandler = new FileHandler(this, viewModel, versionManager);
-        binding.launchButton.setEnabled(true);
+        setLaunchEnabled(true);
         if (!handleInstanceShortcutLaunch()) {
             setTextMinecraftVersion();
             updateViewModelVersion();
@@ -582,27 +586,22 @@ import okhttp3.OkHttpClient;
         if (viewModel == null) return;
         modsListContainer = binding.modsListContainer;
 
+        // The whole card opens the mods page; while mods are listed, the list itself is the touch target.
         binding.manageModsButton.setOnClickListener(v -> openModsFullscreen());
-        DynamicAnim.applyPressScale(binding.manageModsButton);
-
-        org.levimc.launcher.util.PersonalizationManager pm = new org.levimc.launcher.util.PersonalizationManager(this);
-        int accent = pm.getAccentColor();
-        if (accent != 0) {
-            binding.manageModsButton.setTextColor(accent);
-            android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-            gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-            gd.setColor(android.graphics.Color.argb(26, android.graphics.Color.red(accent), android.graphics.Color.green(accent), android.graphics.Color.blue(accent)));
-            gd.setCornerRadius(5 * getResources().getDisplayMetrics().density);
-            gd.setStroke((int)(1 * getResources().getDisplayMetrics().density),
-                    android.graphics.Color.argb(51, android.graphics.Color.red(accent), android.graphics.Color.green(accent), android.graphics.Color.blue(accent)));
-            binding.manageModsButton.setBackground(gd);
-
-            if (binding.minecraftTitleText != null) {
-                pm.applySolidAccentText(binding.minecraftTitleText, accent);
-            }
-        }
+        binding.modCard.setOnClickListener(v -> openModsFullscreen());
+        modsListContainer.setOnClickListener(v -> openModsFullscreen());
+        UiKit.tintSoftAccent(binding.loaderChip, 8);
 
         viewModel.getModsLiveData().observe(this, this::updateModsUI);
+        // An instance with LeviLamina installed shows it by the title (it is not listed among the mods).
+        binding.loaderChip.setOnClickListener(v -> org.levimc.launcher.ui.packages.PackageActions.openLoaderSettings(
+                this, versionManager != null ? versionManager.getSelectedVersion() : null));
+        viewModel.getLoaderLiveData().observe(this, llVersion -> {
+            boolean shown = llVersion != null;
+            binding.loaderChip.setVisibility(shown ? View.VISIBLE : View.GONE);
+            binding.loaderChip.setContentDescription(shown
+                    ? getString(R.string.pkg_loader_name) + " " + llVersion : null);
+        });
     }
 
     private void updateViewModelVersion() {
@@ -683,17 +682,20 @@ import okhttp3.OkHttpClient;
             refreshContentCounts();
         }
         if (binding != null && versionManager != null) {
-            binding.launchButton.setEnabled(true);
+            setLaunchEnabled(true);
         }
     }
 
     @SuppressLint({"ClickableViewAccessibility", "UnsafeIntentLaunch"})
     private void initListeners() {
-        binding.launchButton.setEnabled(false);
+        setLaunchEnabled(false);
         binding.launchButton.setOnClickListener(v -> launchGame());
-        DynamicAnim.applyPressScale(binding.launchButton);
+        binding.homeLaunchMenuButton.setOnClickListener(this::showLaunchMenu);
         binding.selectVersionButton.setOnClickListener(v -> showVersionSelectDialog());
         DynamicAnim.applyPressScale(binding.selectVersionButton);
+        binding.homeInstanceSettingsButton.setOnClickListener(v -> openInstanceSettings());
+        DynamicAnim.applyPressScale(binding.homeInstanceSettingsButton);
+        styleHomeAccents();
 
         FeatureSettings.init(getApplicationContext());
         showRandomTip();
@@ -733,7 +735,6 @@ import okhttp3.OkHttpClient;
         });
 
         binding.contentViewAll.setOnClickListener(v -> openContentManagement());
-        DynamicAnim.applyPressScale(binding.contentViewAll);
 
         binding.contentWorldsRow.setOnClickListener(v -> openContentList(ContentListActivity.TYPE_WORLDS));
         binding.contentResourcePacksRow.setOnClickListener(v -> openContentList(ContentListActivity.TYPE_RESOURCE_PACKS));
@@ -789,8 +790,65 @@ import okhttp3.OkHttpClient;
 
     private void initMiscellaneousSection() {
         binding.miscCurseforgeRow.setOnClickListener(v -> startActivity(new Intent(this, CurseForgeActivity.class)));
-        binding.miscAccountsRow.setOnClickListener(v -> startActivity(new Intent(this, AccountsActivity.class)));
-        binding.miscQuickLaunchRow.setOnClickListener(v -> startActivity(new Intent(this, QuickLaunchActivity.class)));
+        binding.miscPkgRow.setOnClickListener(v -> startActivity(org.levimc.launcher.ui.packages.PackagesActivity.intent(
+                this, versionManager != null ? versionManager.getSelectedVersion() : null, null)));
+        binding.miscExternalModsRow.setOnClickListener(v -> startActivity(new Intent(this, ExternalModsActivity.class)));
+    }
+
+    /** Colors that depend on the chosen theme color, and the per-category icon chips. */
+    private void styleHomeAccents() {
+        int accent = UiKit.accent(this);
+        int onAccent = ThemePalette.onAccent(accent);
+        GradientDrawable launchFill = new GradientDrawable();
+        launchFill.setCornerRadius(UiKit.dp(this, 14));
+        launchFill.setColor(accent);
+        binding.homeLaunchGroup.setBackground(launchFill);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            binding.homeLaunchGroup.setOutlineSpotShadowColor(accent);
+            binding.homeLaunchGroup.setOutlineAmbientShadowColor(accent);
+        }
+        binding.launchButton.setBackgroundTintList(ColorStateList.valueOf(Color.TRANSPARENT));
+        binding.launchButton.setTextColor(onAccent);
+        binding.launchButton.setIconTint(ColorStateList.valueOf(onAccent));
+        binding.homeLaunchMenuButton.setImageTintList(ColorStateList.valueOf(onAccent));
+        binding.homeLaunchDivider.setBackgroundColor(onAccent);
+
+        UiKit.tintIconChip(binding.homeContentChip, binding.homeContentIcon, UiKit.PINK);
+        UiKit.tintIconChip(binding.homeDownloadChip, binding.homeDownloadIcon, UiKit.ORANGE);
+        UiKit.tintIconChip(binding.homeWorldsChip, binding.homeWorldsIcon, UiKit.BLUE);
+        UiKit.tintIconChip(binding.homeResourcePacksChip, binding.homeResourcePacksIcon, UiKit.PURPLE);
+        UiKit.tintIconChip(binding.homeSkinPacksChip, binding.homeSkinPacksIcon, UiKit.ORANGE);
+        // The CurseForge logo keeps its own colors; only its chip is tinted.
+        UiKit.tintIconChip(binding.homeCurseforgeChip, null, UiKit.ORANGE);
+        UiKit.tintIconChip(binding.homePkgChip, binding.homePkgIcon, UiKit.GREEN);
+        UiKit.tintIconChip(binding.homeExternalModsChip, binding.homeExternalModsIcon, UiKit.INDIGO);
+    }
+
+    private void setLaunchEnabled(boolean enabled) {
+        if (binding == null) return;
+        binding.launchButton.setEnabled(enabled);
+        binding.homeLaunchMenuButton.setEnabled(enabled);
+        binding.homeLaunchGroup.setAlpha(enabled ? 1f : 0.6f);
+    }
+
+    private void showLaunchMenu(View anchor) {
+        new LauncherPopup(anchor)
+                .width(240)
+                .action(1, getString(R.string.quick_launch), R.drawable.ic_qa_launch)
+                .onSelect(id -> startActivity(new Intent(this, QuickLaunchActivity.class)))
+                .show();
+    }
+
+    private void openInstanceSettings() {
+        if (!isVersionManagerReady()) return;
+        GameVersion currentVersion = versionManager.getSelectedVersion();
+        if (currentVersion == null) {
+            Toast.makeText(this, getString(R.string.not_found_version), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Intent intent = new Intent(this, InstanceSettingsActivity.class);
+        intent.putExtra("version", currentVersion);
+        startActivity(intent);
     }
 
     private void openModsFullscreen() {
@@ -803,7 +861,7 @@ import okhttp3.OkHttpClient;
         performActualLaunch();
     }
     private void performActualLaunch() {
-        binding.launchButton.setEnabled(false);
+        setLaunchEnabled(false);
         LaunchTrace trace = LaunchTrace.create(null);
         trace.milestone("Launch requested");
 
@@ -811,7 +869,7 @@ import okhttp3.OkHttpClient;
 
         if (version == null) {
             trace.warning("Launch cancelled", "No version selected");
-            binding.launchButton.setEnabled(true);
+            setLaunchEnabled(true);
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.dialog_title_no_version))
                     .setMessage(getString(R.string.dialog_message_no_version))
@@ -826,7 +884,7 @@ import okhttp3.OkHttpClient;
             boolean loggedIn = active != null && active.minecraftUsername != null && !active.minecraftUsername.isEmpty();
             if (!loggedIn) {
                 trace.warning("Launch cancelled", "Minecraft account is missing");
-                binding.launchButton.setEnabled(true);
+                setLaunchEnabled(true);
                 new CustomAlertDialog(this)
                         .setTitleText(getString(R.string.dialog_title_login_required))
                         .setMessage(getString(R.string.dialog_message_login_required))
@@ -855,13 +913,13 @@ import okhttp3.OkHttpClient;
                 public void onLaunchFailed(Exception e) {
                     trace.error("Launch failed before loading screen", e.getMessage());
                     runOnUiThread(() -> {
-                        if (binding != null) binding.launchButton.setEnabled(true);
+                        setLaunchEnabled(true);
                     });
                 }
             });
         } catch (Exception e) {
             trace.error("Launch failed before activity start", e.getMessage());
-            binding.launchButton.setEnabled(true);
+            setLaunchEnabled(true);
             new CustomAlertDialog(this)
                     .setTitleText(getString(R.string.dialog_title_launch_failed))
                     .setMessage(getString(R.string.dialog_message_launch_failed, e.getMessage()))
@@ -1001,6 +1059,7 @@ import okhttp3.OkHttpClient;
             holder.version.setText(versionText);
             holder.version.setVisibility(TextUtils.isEmpty(versionText) ? View.GONE : View.VISIBLE);
             holder.itemView.setActivated(isSelected);
+            InstanceIcons.bind(holder.icon, v);
             holder.check.setVisibility(isSelected ? View.VISIBLE : View.GONE);
             holder.tag.setVisibility(View.GONE);
             applyInstanceSelectionStyle(holder, isSelected);
@@ -1037,13 +1096,14 @@ import okhttp3.OkHttpClient;
 
         static class VH extends RecyclerView.ViewHolder {
             TextView name, version, tag;
-            ImageView check;
+            ImageView check, icon;
             VH(View v) {
                 super(v);
                 name = v.findViewById(R.id.instance_name);
                 version = v.findViewById(R.id.instance_version);
                 tag = v.findViewById(R.id.instance_tag);
                 check = v.findViewById(R.id.instance_check);
+                icon = v.findViewById(R.id.instance_icon);
             }
         }
     }
@@ -1073,11 +1133,13 @@ import okhttp3.OkHttpClient;
         if (binding == null) return;
         if (versionManager == null) {
             binding.textMinecraftVersion.setText(getString(R.string.not_found_version));
+            InstanceIcons.bind(binding.homeInstanceIcon, null);
             return;
         }
         GameVersion selectedVersion = versionManager.getSelectedVersion();
         String instanceName = selectedVersion != null ? getInstanceDisplayName(selectedVersion) : null;
         binding.textMinecraftVersion.setText(TextUtils.isEmpty(instanceName) ? getString(R.string.not_found_version) : instanceName);
+        InstanceIcons.bind(binding.homeInstanceIcon, selectedVersion);
     }
 
     private boolean isVersionManagerReady() {
@@ -1179,25 +1241,29 @@ import okhttp3.OkHttpClient;
         if (binding == null || modsListContainer == null) return;
         modsListContainer.removeAllViews();
 
-        // Add enabled external mods
+        int shown = 0;
         if (mods != null) {
             for (Mod mod : mods) {
                 if (mod.isEnabled()) {
                     addModNameEntry(mod.getDisplayName());
+                    shown++;
                 }
             }
         }
-
+        binding.homeModsScroll.setVisibility(shown > 0 ? View.VISIBLE : View.GONE);
+        binding.homeModsEmpty.setVisibility(shown > 0 ? View.GONE : View.VISIBLE);
+        binding.homeModsEmptyText.setText(mods == null || mods.isEmpty()
+                ? R.string.home_mods_empty : R.string.home_mods_none_enabled);
     }
 
     private void addModNameEntry(String name) {
         TextView tv = new TextView(this);
         tv.setText(name);
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12);
-        tv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.on_surface));
-        tv.setFontFeatureSettings(null);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14);
+        tv.setTextColor(ContextCompat.getColor(this, R.color.text_primary));
         tv.setTypeface(getResources().getFont(R.font.misans));
-        tv.setPadding(0, (int)(3 * getResources().getDisplayMetrics().density), 0, (int)(3 * getResources().getDisplayMetrics().density));
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        tv.setMinHeight((int) UiKit.dp(this, 36));
         tv.setMaxLines(1);
         tv.setEllipsize(android.text.TextUtils.TruncateAt.END);
         modsListContainer.addView(tv);

@@ -2,12 +2,20 @@ package org.levimc.launcher.core.curseforge;
 
 import org.levimc.launcher.BuildConfig;
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import org.levimc.launcher.core.curseforge.models.ContentSearchResponse;
 import org.levimc.launcher.core.curseforge.models.ModFilesResponse;
 import org.levimc.launcher.core.curseforge.models.StringResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -50,6 +58,17 @@ public class CurseForgeClient {
         return instance;
     }
 
+    private static IOException httpError(Response response) {
+        int code = response.code();
+        if (code == 401 || code == 403) {
+            String reason = API_KEY == null || API_KEY.isEmpty()
+                    ? "no CurseForge API key in this build (set curseforge.api_key in local.properties)"
+                    : "CurseForge rejected the API key";
+            return new IOException(reason + " (HTTP " + code + ")");
+        }
+        return new IOException("Unexpected code " + response);
+    }
+
     public interface CurseForgeCallback<T> {
         void onSuccess(T result);
         void onError(Throwable t);
@@ -88,7 +107,7 @@ public class CurseForgeClient {
             @Override
             public void onResponse(Call call, Response response) {
                 if (!response.isSuccessful()) {
-                    callback.onError(new IOException("Unexpected code " + response));
+                    callback.onError(httpError(response));
                     return;
                 }
                 
@@ -120,7 +139,7 @@ public class CurseForgeClient {
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    callback.onError(new IOException("Unexpected code " + response));
+                    callback.onError(httpError(response));
                     return;
                 }
 
@@ -155,7 +174,7 @@ public class CurseForgeClient {
             @Override
             public void onResponse(Call call, Response response) {
                 if (!response.isSuccessful()) {
-                    callback.onError(new IOException("Unexpected code " + response));
+                    callback.onError(httpError(response));
                     return;
                 }
 
@@ -168,5 +187,80 @@ public class CurseForgeClient {
                 }
             }
         });
+    }
+
+    /** The game's versions (newest first), for the search's game version filter. */
+    public void getGameVersions(CurseForgeCallback<List<String>> callback) {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/v2/games/" + GAME_ID_MINECRAFT + "/versions")
+                .addHeader("x-api-key", API_KEY)
+                .addHeader("Accept", "application/json")
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                callback.onError(e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                if (!response.isSuccessful()) {
+                    callback.onError(new IOException("Unexpected code " + response));
+                    return;
+                }
+                try {
+                    String json = response.body().string();
+                    callback.onSuccess(parseGameVersions(json));
+                } catch (Exception e) {
+                    callback.onError(e);
+                }
+            }
+        });
+    }
+
+    // v2 shape: {"data":[{"type":N,"versions":[{"id":..,"slug":..,"name":"1.21.0"}, ...]}, ...]}
+    static List<String> parseGameVersions(String json) {
+        Set<String> names = new LinkedHashSet<>();
+        JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+        JsonArray data = root.has("data") && root.get("data").isJsonArray() ? root.getAsJsonArray("data") : new JsonArray();
+        for (JsonElement group : data) {
+            if (!group.isJsonObject() || !group.getAsJsonObject().has("versions")) continue;
+            JsonElement versions = group.getAsJsonObject().get("versions");
+            if (!versions.isJsonArray()) continue;
+            for (JsonElement v : versions.getAsJsonArray()) {
+                String name = null;
+                if (v.isJsonPrimitive()) {
+                    name = v.getAsString();
+                } else if (v.isJsonObject() && v.getAsJsonObject().has("name")) {
+                    name = v.getAsJsonObject().get("name").getAsString();
+                }
+                if (name != null && !name.trim().isEmpty() && Character.isDigit(name.trim().charAt(0))) {
+                    names.add(name.trim());
+                }
+            }
+        }
+        List<String> out = new ArrayList<>(names);
+        out.sort((a, b) -> compareVersions(b, a));
+        return out;
+    }
+
+    private static int compareVersions(String a, String b) {
+        String[] pa = a.split("[^0-9]+");
+        String[] pb = b.split("[^0-9]+");
+        for (int i = 0; i < Math.max(pa.length, pb.length); i++) {
+            long x = i < pa.length && !pa[i].isEmpty() ? parseLong(pa[i]) : 0;
+            long y = i < pb.length && !pb[i].isEmpty() ? parseLong(pb[i]) : 0;
+            if (x != y) return Long.compare(x, y);
+        }
+        return a.compareTo(b);
+    }
+
+    private static long parseLong(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 }

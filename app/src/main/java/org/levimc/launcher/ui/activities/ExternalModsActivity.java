@@ -2,7 +2,7 @@ package org.levimc.launcher.ui.activities;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.graphics.Rect;
+import android.content.res.ColorStateList;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
@@ -10,16 +10,13 @@ import android.text.TextUtils;
 import android.text.format.Formatter;
 import android.text.TextWatcher;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
+import android.widget.CompoundButton;
 import android.widget.EditText;
-import android.widget.ImageButton;
 import android.widget.ProgressBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
+import androidx.core.widget.CompoundButtonCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,6 +37,9 @@ import org.levimc.launcher.ui.dialogs.CustomAlertDialog;
 import org.levimc.launcher.ui.dialogs.InstallProgressDialog;
 import org.levimc.launcher.ui.views.MainViewModel;
 import org.levimc.launcher.ui.views.MainViewModelFactory;
+import org.levimc.launcher.ui.widget.UiKit;
+import org.levimc.launcher.ui.widget.LauncherPopup;
+import org.levimc.launcher.util.PersonalizationManager;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,10 +55,13 @@ public final class ExternalModsActivity extends BaseActivity {
     private TextView empty;
     private TextView status;
     private EditText search;
-    private MaterialButton compatibleFilter;
-    private Spinner sort;
+    private CompoundButton compatibleFilter;
+    private MaterialButton sort;
     private MaterialButton discord;
-    private ImageButton refresh;
+    private MaterialButton refresh;
+    private static final int SORT_NEWEST = 0;
+    private static final int SORT_NAME = 1;
+    private int sortMode = SORT_NEWEST;
     private ModCatalogInstaller installer;
     private InstallProgressDialog installDialog;
     private MainViewModel viewModel;
@@ -97,6 +100,7 @@ public final class ExternalModsActivity extends BaseActivity {
         ModCatalogRepository.loadCached(this, (catalog, error) -> renderCatalog(catalog));
         refreshCatalog(false);
         DynamicAnim.applyPressScaleRecursively(findViewById(android.R.id.content));
+        new PersonalizationManager(this).applyAccentToView(findViewById(android.R.id.content), this);
     }
 
     @Override
@@ -118,10 +122,9 @@ public final class ExternalModsActivity extends BaseActivity {
     }
 
     private void setupRecycler() {
-        int spans = calculateSpanCount();
+        // v1.6.1 grid: about 3 cards across on a landscape phone, at least one.
+        int spans = Math.max(1, getResources().getConfiguration().screenWidthDp / 280);
         recycler.setLayoutManager(new GridLayoutManager(this, spans));
-        recycler.addItemDecoration(new GridSpacingDecoration(
-                spans, (int) (8 * getResources().getDisplayMetrics().density)));
         adapter = new ExternalModsAdapter(minecraftVersion, this::handleModAction);
         recycler.setAdapter(adapter);
     }
@@ -131,7 +134,11 @@ public final class ExternalModsActivity extends BaseActivity {
         refresh.setOnClickListener(v -> refreshCatalog(true));
         DynamicAnim.applyPressScale(discord);
         DynamicAnim.applyPressScale(refresh);
-        DynamicAnim.applyPressScale(compatibleFilter);
+        DynamicAnim.applyPressScale(sort);
+        // PersonalizationManager re-tints switches and buttons, not checkboxes.
+        int[][] states = {{android.R.attr.state_checked}, {}};
+        CompoundButtonCompat.setButtonTintList(compatibleFilter, new ColorStateList(states,
+                new int[]{UiKit.accent(this), UiKit.secondaryText(this)}));
     }
 
     private void openCommunityDiscord() {
@@ -145,28 +152,23 @@ public final class ExternalModsActivity extends BaseActivity {
     private void setupFilters() {
         compatibleFilter.setEnabled(!minecraftVersion.isEmpty());
         compatibleOnly = !minecraftVersion.isEmpty();
-        updateCompatibilityFilterText();
-        compatibleFilter.setOnClickListener(v -> {
-            compatibleOnly = !compatibleOnly;
-            updateCompatibilityFilterText();
+        compatibleFilter.setChecked(compatibleOnly);
+        compatibleFilter.setOnCheckedChangeListener((button, checked) -> {
+            compatibleOnly = checked;
             applyFilters();
         });
 
-        ArrayAdapter<String> sortAdapter = new ArrayAdapter<>(this, R.layout.spinner_item,
-                new String[]{getString(R.string.external_mods_sort_newest),
-                        getString(R.string.external_mods_sort_name)});
-        sortAdapter.setDropDownViewResource(R.layout.spinner_dropdown_item);
-        sort.setAdapter(sortAdapter);
-
-        sort.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                applyFilters();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
+        updateSortText();
+        sort.setOnClickListener(v -> {
+            new LauncherPopup(v)
+                    .section(getString(R.string.pkg_sort_by))
+                    .choice(SORT_NEWEST, getString(R.string.external_mods_sort_newest), sortMode == SORT_NEWEST)
+                    .choice(SORT_NAME, getString(R.string.external_mods_sort_name), sortMode == SORT_NAME)
+                    .onSelect(id -> {
+                        sortMode = id;
+                        updateSortText();
+                        applyFilters();
+                    }).show();
         });
         search.addTextChangedListener(new TextWatcher() {
             @Override
@@ -184,10 +186,10 @@ public final class ExternalModsActivity extends BaseActivity {
         });
     }
 
-    private void updateCompatibilityFilterText() {
-        compatibleFilter.setText(compatibleOnly
-                ? R.string.external_mods_compatible_only
-                : R.string.external_mods_all_versions);
+    private void updateSortText() {
+        sort.setText(getString(R.string.mods_external_sort, getString(sortMode == SORT_NAME
+                ? R.string.external_mods_sort_name
+                : R.string.external_mods_sort_newest)));
     }
 
     private void refreshCatalog(boolean userRequested) {
@@ -207,6 +209,7 @@ public final class ExternalModsActivity extends BaseActivity {
     private void renderCatalog(ModCatalog catalog) {
         allMods.clear();
         if (catalog != null && catalog.mods != null) allMods.addAll(catalog.mods);
+        if (adapter != null && catalog != null) adapter.setGithubProxy(catalog.githubProxy);
         progress.setVisibility(View.GONE);
         applyFilters();
     }
@@ -222,7 +225,7 @@ public final class ExternalModsActivity extends BaseActivity {
             filtered.add(mod);
         }
 
-        if (sort.getSelectedItemPosition() == 1) {
+        if (sortMode == SORT_NAME) {
             filtered.sort(Comparator.comparing(mod -> value(mod.name).toLowerCase(Locale.ROOT)));
         } else {
             filtered.sort(Comparator.comparing(
@@ -389,35 +392,7 @@ public final class ExternalModsActivity extends BaseActivity {
         return release == null ? "" : value(release.publishedAt);
     }
 
-    private int calculateSpanCount() {
-        float width = getResources().getDisplayMetrics().widthPixels
-                / getResources().getDisplayMetrics().density;
-        if (width >= 480f) return 3;
-        if (width >= 320f) return 2;
-        return 1;
-    }
-
     private String value(String value) {
         return value == null ? "" : value;
-    }
-
-    private static final class GridSpacingDecoration extends RecyclerView.ItemDecoration {
-        private final int spans;
-        private final int spacing;
-
-        GridSpacingDecoration(int spans, int spacing) {
-            this.spans = spans;
-            this.spacing = spacing;
-        }
-
-        @Override
-        public void getItemOffsets(@NonNull Rect outRect, @NonNull View view,
-                                   @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
-            int position = parent.getChildAdapterPosition(view);
-            int column = position % spans;
-            outRect.left = spacing - column * spacing / spans;
-            outRect.right = (column + 1) * spacing / spans;
-            if (position >= spans) outRect.top = spacing;
-        }
     }
 }
