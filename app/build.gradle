@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
 }
@@ -67,7 +68,7 @@ static def getVersionCodeByTimestamp() {
 
 android {
     namespace 'org.levimc.launcher'
-    compileSdkVersion 36
+    compileSdkVersion 37
     defaultConfig {
         applicationId "org.levimc.launcher"
         minSdkVersion 28
@@ -92,6 +93,7 @@ android {
 
     buildFeatures {
         viewBinding true
+        compose true
     }
     buildFeatures {
         prefab true
@@ -190,6 +192,11 @@ android {
 
 dependencies {
     implementation files('libs/discord_partner_sdk.aar')
+    implementation libs.compose.foundation
+    implementation libs.compose.ui
+    implementation libs.compose.animation
+    implementation libs.kyant.backdrop
+    implementation libs.kyant.shapes
     implementation project(':minecraft')
     implementation project(':pojav_controls')
     implementation libs.commonmark

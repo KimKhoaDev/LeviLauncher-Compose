@@ -1,4 +1,7 @@
 [versions]
+composeUi = "1.12.2"
+backdrop = "2.0.1"
+shapes = "1.2.1"
 agp = "8.13.2"
 bcprovJdk15on = "1.70"
 bedrockConnection = "3.0.0.Beta10-SNAPSHOT"
@@ -42,6 +45,11 @@ dynamicanimation = "1.1.0"
 xcrash = "3.1.2"
 
 [libraries]
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeUi" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeUi" }
+compose-animation = { module = "org.jetbrains.compose.animation:animation", version.ref = "composeUi" }
+kyant-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
+kyant-shapes = { module = "io.github.kyant0:shapes", version.ref = "shapes" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomRuntime" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomRuntime" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomRuntime" }
@@ -95,6 +103,7 @@ commonmark-ext-gfm-strikethrough = { module = "org.commonmark:commonmark-ext-gfm
 commonmark-ext-autolink = { module = "org.commonmark:commonmark-ext-autolink", version.ref = "commonmark" }
 
 [plugins]
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 android-library = { id = "com.android.library", version.ref = "agp" }
