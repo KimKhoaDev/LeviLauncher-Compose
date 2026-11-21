@@ -22,7 +22,7 @@ jobs:
         run: |
           set -o pipefail
           chmod +x gradlew
-          ./gradlew :app:compileDebugKotlin -x 'configureCMakeDebug[arm64-v8a]' -x 'buildCMakeDebug[arm64-v8a]' --stacktrace 2>&1 | tee build.log
+          ./gradlew :app:compileDebugKotlin :app:compileDebugJavaWithJavac -x 'configureCMakeDebug[arm64-v8a]' -x 'buildCMakeDebug[arm64-v8a]' --stacktrace 2>&1 | tee build.log
       - name: Surface errors as annotations
         if: failure()
         run: |
