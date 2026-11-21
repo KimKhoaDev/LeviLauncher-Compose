@@ -219,3 +219,25 @@ fun GlassTextField(value: String, onChange: (String) -> Unit, hint: String, modi
         if (value.isEmpty()) GText(hint, 15, color = g.subtext)
     }
 }
+
+@Composable
+fun GlassSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    val g = LocalGlass.current
+    val x by animateDpAsState(if (checked) 22.dp else 2.dp, spring(0.6f, 500f), label = "sx")
+    val bg by androidx.compose.animation.animateColorAsState(if (checked) g.accent else g.tint, label = "sbg")
+    Box(
+        Modifier.width(52.dp).height(32.dp).clip(CircleShape).background(bg)
+            .pointerInput(checked) { detectTapGestures { onChange(!checked) } },
+    ) { Box(Modifier.offset(x, 2.dp).size(28.dp).clip(CircleShape).background(Color.White)) }
+}
+
+@Composable
+fun FileImage(path: String, size: Int = 64) {
+    val g = LocalGlass.current
+    val bmp by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, path) {
+        value = withContext(Dispatchers.IO) { try { BitmapFactory.decodeFile(path)?.asImageBitmap() } catch (e: Exception) { null } }
+    }
+    Box(Modifier.size(size.dp).clip(RoundedCornerShape(14.dp)).background(g.tint)) {
+        bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+    }
+}
