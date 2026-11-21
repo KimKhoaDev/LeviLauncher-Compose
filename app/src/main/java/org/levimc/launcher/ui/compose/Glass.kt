@@ -181,3 +181,41 @@ fun RemoteAvatar(url: String, size: Int = 52) {
         bmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
     }
 }
+
+/** Inline dropdown: shows "label: selected" and expands into a list of options. */
+@Composable
+fun GlassSelect(label: String, items: List<String>, selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val g = LocalGlass.current
+    var open by remember { mutableStateOf(false) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        GlassButton("$label: ${items.getOrElse(selected) { "" }}  ▾", { if (enabled) open = !open }, Modifier.fillMaxWidth())
+        androidx.compose.animation.AnimatedVisibility(open && enabled) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 240.dp).clip(RoundedCornerShape(18.dp)).background(g.tint).verticalScroll(rememberScrollState()),
+            ) {
+                items.forEachIndexed { i, s ->
+                    Box(
+                        Modifier.fillMaxWidth().pointerInput(Unit) { detectTapGestures { onPick(i); open = false } }
+                            .background(if (i == selected) g.accent.copy(alpha = 0.25f) else Color.Transparent).padding(14.dp),
+                    ) { GText(s, 14, if (i == selected) FontWeight.Bold else FontWeight.Normal) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GlassTextField(value: String, onChange: (String) -> Unit, hint: String, modifier: Modifier = Modifier, onSearch: (() -> Unit)? = null) {
+    val g = LocalGlass.current
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(g.tint).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        androidx.compose.foundation.text.BasicTextField(
+            value, onChange, singleLine = true,
+            textStyle = TextStyle(color = g.text, fontSize = 15.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(g.accent),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSearch?.invoke() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (value.isEmpty()) GText(hint, 15, color = g.subtext)
+    }
+}
