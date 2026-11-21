@@ -1,46 +1,35 @@
 name: Compose compile check
 
-# Extra workflow (the original android.yml is untouched). Compiles the Kotlin/Compose sources
-# without secrets by using an empty stub for the private Discord SDK AAR.
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
-  compile:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
-      - name: Stub Discord SDK and google-services
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Stub private build inputs
         run: |
           mkdir -p app/libs
           python3 - <<'PY'
-          import zipfile, io
-          jar = io.BytesIO()
-          zipfile.ZipFile(jar, 'w').close()
+          import zipfile
           with zipfile.ZipFile('app/libs/discord_partner_sdk.aar', 'w') as z:
               z.writestr('AndroidManifest.xml', '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.discord.stub"/>')
-              z.writestr('classes.jar', jar.getvalue())
+              z.writestr('classes.jar', b'PK\x05\x06' + b'\x00' * 18)
           PY
-          cat > app/google-services.json <<'JSON'
-          {"project_info":{"project_number":"000000000000","project_id":"ci-placeholder","storage_bucket":"ci-placeholder.appspot.com"},
-           "client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000000000","android_client_info":{"package_name":"org.levimc.launcher"}},
-           "oauth_client":[],"api_key":[{"current_key":"AIzaSyCIOnlyPlaceholderKey"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}],
-           "configuration_version":"1"}
-          JSON
-          echo "curseforge.api_key=ci" >> local.properties
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Compile Kotlin
+          echo '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"org.levimc.launcher"}},"api_key":[{"current_key":"x"}]}]}' > app/google-services.json
+      - name: Compile Kotlin (Compose)
         run: |
-          chmod +x ./gradlew
           set -o pipefail
           ./gradlew :app:compileDebugKotlin --stacktrace 2>&1 | tee build.log
-      - name: Surface errors
+      - name: Surface errors as annotations
         if: failure()
         run: |
           msg=$(grep -E "^e: |What went wrong|Could not |Caused by|error:" -A3 build.log | head -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A",$0}')

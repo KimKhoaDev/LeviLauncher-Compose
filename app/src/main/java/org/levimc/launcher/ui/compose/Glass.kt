@@ -77,9 +77,9 @@ fun GlassTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalGlass provides colors, content = content)
 }
 
-/** Animated ambient background that the glass surfaces refract/blur, plus a scrolling page column. */
+/** Animated ambient layer that glass surfaces blur/refract. Content may be anything (e.g. a LazyColumn). */
 @Composable
-fun GlassScaffold(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun GlassBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val g = LocalGlass.current
     val backdrop = rememberLayerBackdrop()
     val t = rememberInfiniteTransition(label = "ambient")
@@ -95,13 +95,19 @@ fun GlassScaffold(modifier: Modifier = Modifier, content: @Composable ColumnScop
                 )
             }
         }
-        CompositionLocalProvider(LocalBackdrop provides backdrop) {
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                content = content,
-            )
-        }
+        CompositionLocalProvider(LocalBackdrop provides backdrop) { content() }
+    }
+}
+
+/** Glass background plus a scrolling page column. */
+@Composable
+fun GlassScaffold(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    GlassBackground(modifier) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content,
+        )
     }
 }
 
