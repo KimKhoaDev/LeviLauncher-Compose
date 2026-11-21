@@ -17,14 +17,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Stub private build inputs
         run: |
-          mkdir -p app/libs
-          python3 - <<'PY'
-          import zipfile
-          with zipfile.ZipFile('app/libs/discord_partner_sdk.aar', 'w') as z:
-              z.writestr('AndroidManifest.xml', '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.discord.stub"/>')
-              z.writestr('classes.jar', b'PK\x05\x06' + b'\x00' * 18)
-          PY
-          echo '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"org.levimc.launcher"}},"api_key":[{"current_key":"x"}]}]}' > app/google-services.json
+echo '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"org.levimc.launcher"}},"api_key":[{"current_key":"x"}]}]}' > app/google-services.json
       - name: Compile Kotlin (Compose)
         run: |
           set -o pipefail

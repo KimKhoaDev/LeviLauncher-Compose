@@ -191,7 +191,6 @@ android {
 }
 
 dependencies {
-    implementation files('libs/discord_partner_sdk.aar')
     implementation libs.compose.foundation
     implementation libs.compose.ui
     implementation libs.compose.animation

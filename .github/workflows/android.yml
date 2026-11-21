@@ -15,33 +15,6 @@ jobs:
           fetch-depth: 0
           submodules: "recursive"
 
-      - name: Download Discord Social SDK
-        env:
-          GH_TOKEN: ${{ secrets.DISCORD_SDK_TOKEN }}
-          DISCORD_SDK_REPOSITORY: ${{ vars.DISCORD_SDK_REPOSITORY }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${GH_TOKEN:-}" ] || [ -z "${DISCORD_SDK_REPOSITORY:-}" ]; then
-            echo "::error::Configure DISCORD_SDK_REPOSITORY and DISCORD_SDK_TOKEN."
-            echo "😒"
-          fi
-
-          mkdir -p app/libs
-
-          gh release download 'discord-sdk-1.10.19337' \
-            --repo "$DISCORD_SDK_REPOSITORY" \
-            --pattern 'discord_partner_sdk.aar' \
-            --dir app/libs \
-            --clobber
-
-          if ! printf '%s  %s\n' \
-            'b1b2491f1e1848c79fd6f1986d5aa1e0c8019e88a6e62c7be06b89e8e4870933' \
-            'app/libs/discord_partner_sdk.aar' | sha256sum --check --status; then
-            echo "::error::Discord SDK checksum mismatch."
-            exit 1
-          fi
-
       - name: Prepare google-services.json
         run: |
           mkdir -p app
@@ -88,7 +61,6 @@ jobs:
         with:
           packages: platform-tools
 
-
       - name: Accept Licenses
         run: yes | sdkmanager --licenses
 
@@ -119,35 +91,12 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Download Android testkey
-        run: |
-          wget -q -O testkey.pk8 "https://raw.githubusercontent.com/aosp-mirror/platform_build/master/target/product/security/testkey.pk8"
-          wget -q -O testkey.x509.pem "https://raw.githubusercontent.com/aosp-mirror/platform_build/master/target/product/security/testkey.x509.pem"
-
-      - name: Install apksigner
-        run: sudo apt-get install -y apksigner
-
-      - name: Sign APK with testkey
-        run: |
-          APK_IN=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          APK_OUT="LeviLauncher-${GITHUB_REF_NAME}-release.apk"
-          apksigner sign \
-            --key testkey.pk8 \
-            --cert testkey.x509.pem \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled true \
-            --v4-signing-enabled true \
-            --out "$APK_OUT" \
-            "$APK_IN"
-          echo "APK_OUT=$APK_OUT" >> $GITHUB_ENV
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "LeviLauncher Unlocked ${{ github.ref_name }}"
-          files: ${{ env.APK_OUT }}
+          files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
