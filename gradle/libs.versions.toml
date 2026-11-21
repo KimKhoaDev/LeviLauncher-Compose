@@ -1,7 +1,6 @@
 [versions]
-composeUi = "1.12.2"
-backdrop = "2.0.1"
-shapes = "1.2.1"
+composeUi = "1.9.4"
+backdrop = "1.0.0"
 agp = "8.13.2"
 bcprovJdk15on = "1.70"
 bedrockConnection = "3.0.0.Beta10-SNAPSHOT"
@@ -45,11 +44,10 @@ dynamicanimation = "1.1.0"
 xcrash = "3.1.2"
 
 [libraries]
-compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeUi" }
-compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeUi" }
-compose-animation = { module = "org.jetbrains.compose.animation:animation", version.ref = "composeUi" }
+compose-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "composeUi" }
+compose-ui = { module = "androidx.compose.ui:ui", version.ref = "composeUi" }
+compose-animation = { module = "androidx.compose.animation:animation", version.ref = "composeUi" }
 kyant-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "backdrop" }
-kyant-shapes = { module = "io.github.kyant0:shapes", version.ref = "shapes" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomRuntime" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomRuntime" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomRuntime" }

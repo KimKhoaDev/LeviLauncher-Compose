@@ -68,7 +68,7 @@ static def getVersionCodeByTimestamp() {
 
 android {
     namespace 'org.levimc.launcher'
-    compileSdkVersion 37
+    compileSdkVersion 36
     defaultConfig {
         applicationId "org.levimc.launcher"
         minSdkVersion 28
@@ -195,7 +195,6 @@ dependencies {
     implementation libs.compose.ui
     implementation libs.compose.animation
     implementation libs.kyant.backdrop
-    implementation libs.kyant.shapes
     implementation project(':minecraft')
     implementation project(':pojav_controls')
     implementation libs.commonmark
