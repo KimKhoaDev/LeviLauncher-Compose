@@ -17,7 +17,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Stub private build inputs
         run: |
-echo '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"org.levimc.launcher"}},"api_key":[{"current_key":"x"}]}]}' > app/google-services.json
+          echo '{"project_info":{"project_number":"1","project_id":"x","storage_bucket":"x.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:1:android:1","android_client_info":{"package_name":"org.levimc.launcher"}},"api_key":[{"current_key":"x"}]}]}' > app/google-services.json
       - name: Compile Kotlin (Compose)
         run: |
           set -o pipefail
