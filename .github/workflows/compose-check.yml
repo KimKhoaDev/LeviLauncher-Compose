@@ -21,6 +21,7 @@ jobs:
       - name: Compile Kotlin (Compose)
         run: |
           set -o pipefail
+          chmod +x gradlew
           ./gradlew :app:compileDebugKotlin --stacktrace 2>&1 | tee build.log
       - name: Surface errors as annotations
         if: failure()
