@@ -23,25 +23,12 @@ import java.util.List;
 
 public class QuickLaunchActivity extends BaseActivity {
 
-    private RecyclerView quickActionsRecycler;
-    private QuickLaunchAdapter adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_quick_launch);
 
-        setupViews();
         loadQuickActions();
-    }
-
-    private void setupViews() {
-        quickActionsRecycler = findViewById(R.id.quick_actions_recycler);
-        quickActionsRecycler.setLayoutManager(new LinearLayoutManager(this));
-        
-        adapter = new QuickLaunchAdapter();
-        adapter.setOnActionClickListener(this::handleQuickAction);
-        quickActionsRecycler.setAdapter(adapter);
     }
 
     private void loadQuickActions() {
@@ -119,7 +106,7 @@ public class QuickLaunchActivity extends BaseActivity {
                 QuickLaunchAdapter.ActionType.CUSTOM_URI
         ));
 
-        adapter.updateItems(items);
+        setContentView(QuickLaunchUi.create(this, items, this::handleQuickAction));
     }
 
     private void handleQuickAction(QuickLaunchAdapter.ActionType actionType) {
